@@ -532,6 +532,119 @@ namespace ZRTUDF
             return dtResult.Compute("Sum(payback_vol)", "").ToString();
         }
 
+        /// <summary>
+        /// 获取客户实时融券余额
+        /// </summary>
+        /// <param name="cust_no">客户号</param>
+        /// <param name="market_code">市场代码</param>
+        /// <param name="sec_code">证券代码</param>
+        /// <param name="target">目标：MAIN, VIP, TEST</param>
+        /// <returns></returns>
+        public string GetRealTimeCreditVol(string cust_no, string market_code, string sec_code, string target)
+        {
+
+            ArrayList arlFields = new ArrayList();
+            ArrayList arlParams = new ArrayList();
+            string scust_no = cust_no;
+            const string sstatus4 = "1"; //是否查融券
+            const long lvol0 = 1; //汇总方式：1-按明细输出；2-按营业部+证券汇总；3-按客户+证券汇总
+            const long lvol2 = 1; //是否输出合计 0-否， 1-是
+            const long lvol12 = 2; //开放式基金 0-不包含 1-包含 2-按营业部参数
+            StringBuilder sbPaybackVol = new StringBuilder();
+            StringBuilder sbErrMsg = new StringBuilder();
+            DataTable dtResult = new DataTable();
+            dtResult.Columns.Add("realtime_credit_vol");
+            dtResult.Columns["realtime_credit_vol"].DataType = System.Type.GetType("System.Int32");
+            int iErrCode = 0;
+            int iVol0 = 0;
+            int iRecordCount = 0;
+            string sTarget = "";
+
+            IntPtr handle = BCCCLT.BCNewHandle("C:\\ZRTUDF\\cpack.dat");
+
+            arlFields.Clear();
+            arlParams.Clear();
+            arlFields.Add("semp"); //职工代码
+            arlParams.Add(sEmpCode);
+            arlFields.Add("sbranch_code0"); //营业部代码
+            arlParams.Add(sBranchNo);
+            arlFields.Add("scust_no"); //客户号
+            arlParams.Add(scust_no);
+            arlFields.Add("lvol0"); //汇总方式：1-按明细输出；2-按营业部+证券汇总；3-按客户+证券汇总
+            arlParams.Add(lvol0.ToString());
+            arlFields.Add("sstock_code"); //证券代码
+            arlParams.Add(sec_code);
+            arlFields.Add("sstatus4"); //查融券
+            arlParams.Add(sstatus4);
+            arlFields.Add("lvol2"); //输出合计
+            arlParams.Add(lvol2.ToString());
+            arlFields.Add("lvol12"); //开放式基金 0-不包含 1-包含 2-按营业部参数
+            arlParams.Add(lvol12.ToString());
+            arlFields.Add("usset5"); //市场代码
+            arlParams.Add(market_code + ",");
+
+            if (target.Trim() == "快订")
+            {
+                sTarget = "VIP";
+            }
+            else if (target.Trim() == "TEST")
+            {
+                sTarget = "TEST";
+            }
+            else
+            {
+                sTarget = "MAIN";
+            }
+
+            if (BCCCLT.ExecuteCommand(handle, 200103, arlFields, arlParams, sTarget) > 0)
+            {
+                try
+                {
+                    do
+                    {
+                        if (BCCCLT.BCGetRetCode(handle, ref iErrCode))
+                        {
+                            if (iErrCode == 0)
+                            {
+                                if (!BCCCLT.BCGetRecordCount(handle, ref iRecordCount))
+                                {
+                                    return "获取记录条数失败！";
+                                }
+
+                                for (int i = 0; i < iRecordCount; i++)
+                                {
+                                    BCCCLT.BCGetIntFieldByName(handle, i, "lserial0", ref iVol0);
+                                    DataRow dr = dtResult.NewRow();
+                                    dr[0] = iVol0;
+                                    dtResult.Rows.Add(dr);
+                                }
+                                //BCCCLT.BCGetStringFieldByName(handle, 0, "lvol0", sbPaybackVol, 160);
+                            }
+
+                        }
+
+                        if (!BCCCLT.BCHaveNextPack(handle))
+                        {
+                            break;
+                        }
+                    } while (BCCCLT.BCCallNext(handle, iTimeout, ref iErrCode, sbErrMsg));
+                }
+                catch (Exception ex)
+                {
+                    throw ex;
+                }
+            }
+
+            BCCCLT.BCDeleteHandle(handle);
+
+            if (dtResult.Compute("Sum(realtime_credit_vol)", "").ToString() == "")
+            {
+                return "0";
+            }
+
+            return dtResult.Compute("Sum(realtime_credit_vol)", "").ToString();
+        }
+
         #region COM Related
 
         [ComRegisterFunction]
